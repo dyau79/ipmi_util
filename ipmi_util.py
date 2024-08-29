@@ -1,46 +1,54 @@
 import argparse
 import subprocess
+import sys
 
-def run_ipmi_command(ip_address, command):
-    full_command = f"ipmitool -I lanplus -H {ip_address} -U <username> -P <password> {command}"
+def check_ipmitool():
     try:
-        result = subprocess.run(full_command, shell=True, check=True, capture_output=True, text=True)
-        return result.stdout
+        subprocess.run(["ipmitool", "-V"], capture_output=True, check=True)
+        return True
+    except subprocess.CalledProcessError:
+        return False
+    except FileNotFoundError:
+        return False
+
+def run_ipmi_command(ip, username, password, command):
+    base_cmd = ["ipmitool", "-I", "lanplus", "-H", ip, "-U", username, "-P", password]
+    full_cmd = base_cmd + command
+    try:
+        result = subprocess.run(full_cmd, capture_output=True, text=True, check=True)
+        return result.stdout.strip()
     except subprocess.CalledProcessError as e:
         print(f"Error executing IPMI command: {e}")
-        return None
+        print(f"Error output: {e.stderr}")
+        sys.exit(1)
 
-def power_cycle(ip_address):
-    print(f"Power cycling server at {ip_address}")
-    result = run_ipmi_command(ip_address, "power cycle")
-    if result:
-        print("Power cycle command sent successfully")
-    else:
-        print("Failed to send power cycle command")
+def power_cycle(ip, username, password):
+    print("Power cycling the server...")
+    run_ipmi_command(ip, username, password, ["power", "cycle"])
+    print("Power cycle command sent successfully.")
 
-def set_pxe_boot(ip_address):
-    print(f"Setting PXE boot for next reboot on server at {ip_address}")
-    # Set boot device to PXE
-    result1 = run_ipmi_command(ip_address, "chassis bootdev pxe")
-    # Ensure the PXE boot is set for the next boot only
-    result2 = run_ipmi_command(ip_address, "chassis bootdev pxe options=persistent")
-    
-    if result1 and result2:
-        print("PXE boot set successfully for next reboot")
-    else:
-        print("Failed to set PXE boot")
+def set_pxe_boot(ip, username, password):
+    print("Setting PXE boot for next reboot...")
+    run_ipmi_command(ip, username, password, ["chassis", "bootdev", "pxe"])
+    print("PXE boot set successfully for the next reboot.")
 
 def main():
-    parser = argparse.ArgumentParser(description="IPMI Control Script")
-    parser.add_argument("ip_address", help="IPMI IP address of the server")
+    parser = argparse.ArgumentParser(description="IPMI Management Script")
+    parser.add_argument("ip", help="IPMI IP address")
     parser.add_argument("action", choices=["power_cycle", "set_pxe"], help="Action to perform")
-    
+    parser.add_argument("-u", "--username", default="ADMIN", help="IPMI username (default: ADMIN)")
+    parser.add_argument("-p", "--password", required=True, help="IPMI password")
     args = parser.parse_args()
-    
+
+    if not check_ipmitool():
+        print("Error: ipmitool is not installed or not in the system PATH.")
+        print("Please install ipmitool and try again.")
+        sys.exit(1)
+
     if args.action == "power_cycle":
-        power_cycle(args.ip_address)
+        power_cycle(args.ip, args.username, args.password)
     elif args.action == "set_pxe":
-        set_pxe_boot(args.ip_address)
+        set_pxe_boot(args.ip, args.username, args.password)
 
 if __name__ == "__main__":
     main()
