@@ -1,4 +1,4 @@
-script provides the functionality you requested. Here's a breakdown of its features:
+Here's a breakdown of its features:
 
 1. It checks if ipmitool is installed and accessible.
 2. It accepts command-line arguments for the IPMI IP address, action to perform, username, and password.
